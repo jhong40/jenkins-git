@@ -33,6 +33,151 @@ ssh jenkins@worker
 
 add-apt-repository ppa:webupd8team/java
 apt-get update
+
+
+###7-1.txt
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                sh '''
+                  echo This > app.sh
+                  echo That >> app.sh
+                '''
+            }
+        }
+        stage('Test') {
+            steps {
+                sh '''
+                  grep This app.sh >> ${BUILD_ID}.cov
+                  grep That app.sh >> ${BUILD_ID}.cov
+                '''
+            }
+        }
+        stage('Coverage'){
+            steps {
+                sh '''
+                  app_lines=`cat app.sh | wc -l`
+                  cov_lines=`cat ${BUILD_ID}.cov | wc -l`
+                  echo The app has `expr $app_lines - $cov_lines` lines uncovered > ${BUILD_ID}.rpt
+                  cat ${BUILD_ID}.rpt
+                '''
+                archiveArtifacts "${env.BUILD_ID}.rpt"
+            }
+        }
+    }
+}
+
+### 7-2.txt
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                sh '''
+                  echo This > app.sh
+                  echo That >> app.sh
+	          echo The Other >> app.sh
+                '''
+            }
+        }
+        stage('Test') {
+            steps {
+                sh '''
+                  for n in This That Those
+                   do if grep $n app.sh >> 8.cov
+                    then exit 1
+                   fi
+                  done
+                '''
+            }
+        }
+        stage('Coverage'){
+            steps {
+                sh '''
+                  app_lines=`cat app.sh | wc -l`
+                  cov_lines=`cat ${BUILD_ID}.cov | wc -l`
+                  echo The app has `expr $app_lines - $cov_lines` lines uncovered > ${BUILD_ID}.rpt
+                  cat ${BUILD_ID}.rpt
+                '''
+                archiveArtifacts "${env.BUILD_ID}.rpt"
+            }
+        }
+    }
+}
+
+#8-1.txt
+# Triggering a build via REST
+#1 We need a token from the Jenkins UI:
+Admin->Configure->Show API Token
+
+#2 We need a CSRF crumb
+curl --user "admin:TOKEN" 'http://jenkins.kumulus.co:8080/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)'
+# grab the entire string from Jenkins-Crumb:...
+
+#3 We can now trigger a build
+curl -X POST http://jenkins.kumulus.co:8080/job/multi-step/build --user admin:TOKEN --data-urlencode json='' -H "Jenkins-Crumb:....."
+
+###8-2.txt
+# Get job status from REST
+#1 we need a token from the Jenkins UI:
+Admin->Configure->Show API Token
+
+#2 we can now request json formatted output
+#  for readability, if we have python installed
+#  we can forward the data through a simple formatter
+curl  -s --user admin:TOKEN http://jenkins.kumulus.co:8080/job/multi-step/lastBuild/api/json | python -mjson.tool
+
+########9-1.txt
+pipeline {
+    agent any
+    environment {
+       SECRET=credentials('jenkins-secret-text')
+    }
+    stages {
+        stage('Build') {
+            steps {
+                echo "${env.SECRET}"
+            }
+        }
+    }
+}
+
+##### 10-1.txt
+pipeline {
+    agent any
+    stages{
+        stage('Build') {
+            steps{
+                sh 'echo "We are generating artifacts for ${BUILD_NUMBER}" > output.txt'
+            }
+        }
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'output.txt', onlyIfSuccessful: true
+            }
+        }
+    }
+}
+### 10-2.txt
+pipeline {
+    agent any
+    stages{
+        stage('Build') {
+            steps{
+                sh 'echo "We are generating text artifacts: Build:${BUILD_NUMBER}" > output.txt'
+            }
+        }
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'output.txt', fingerprint: true, onlyIfSuccessful: true
+            }
+        }
+    }
+}
+
+
 apt install oracle-java8-installer
 
 # Note that you have to manually accept the Oracle license
